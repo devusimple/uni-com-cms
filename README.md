@@ -40,7 +40,7 @@ There is no test suite or formatter configured yet.
 - **Coupons** — create, list, toggle active, edit usage limit/expiry
 - **Customers** — public user directory with role/status actions
 - **Media** — upload, visibility toggle, authenticated preview and download, copy URL, delete
-- **Settings** — profile, account details, session controls
+- **Settings** — profile picture upload, display name, account details, session controls
 
 Access is role-aware. The API exposes two roles: `user` and `admin`. Categories, coupons, customers, product creation, and order fulfilment require `admin`; everyone else sees only their own orders and the published catalog.
 

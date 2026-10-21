@@ -45,6 +45,7 @@ UNI-COM Console is an internal operations SPA for the UNI-COM commerce API. It c
 - Timestamps are numeric with an undocumented unit. Reads use a helper that accepts seconds or milliseconds. Coupon expiry writes currently assume Unix seconds — verify against the backend before relying on date editing.
 - Upload is multipart with field `file` (max 10 MB, `415` for a bad MIME type). Attach with `POST /products/{id}/images { mediaId }`, which marks the media public. There is no reorder endpoint, but `DELETE /products/{id}/images/{mid}` detaches a single image.
 - Media visibility: `PATCH /media/{id} { isPublic }`. Private files are served by `GET /media/{id}/file` and need the bearer token, so the console streams them through `apiBlob` and renders an object URL. Never point an `<img>`/`<a>` straight at a private file URL.
+- Profile picture: the settings screen uploads to `POST /media/upload` (multipart `file`), flips the new media to public with `PATCH /media/{id}`, then points the profile at it with `PATCH /auth/me { avatarUrl }`. The directory shows avatars to other users, so the file has to be public or the picture will not load for them. Removing a picture is `PATCH /auth/me { avatarUrl: null }`.
 
 ## API gaps — do not invent endpoints
 

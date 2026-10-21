@@ -1,6 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, LogOut, MonitorSmartphone, ShieldCheck, UserRound } from 'lucide-react'
+import {
+  ImageUp,
+  Loader2,
+  LogOut,
+  MonitorSmartphone,
+  ShieldCheck,
+  Trash2,
+  UserRound,
+} from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -28,9 +36,12 @@ import {
   requestEmailVerification,
   updateProfile,
 } from '@/lib/api/auth'
+import { updateMediaVisibility, uploadMedia } from '@/lib/api/media'
 import { useAuthStore } from '@/lib/auth-store'
 import { getErrorMessage } from '@/lib/errors'
 import { formatDate, initials } from '@/lib/format'
+
+const MAX_AVATAR_BYTES = 10 * 1024 * 1024
 
 export function SettingsPage() {
   const { user } = useAuth()
@@ -41,25 +52,22 @@ export function SettingsPage() {
   const refreshToken = useAuthStore((state) => state.refreshToken)
 
   const [name, setName] = useState(user?.name ?? '')
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '')
   const [error, setError] = useState<string | null>(null)
   const [logoutAllOpen, setLogoutAllOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
 
   const profileMutation = useMutation({
     mutationFn: async () => {
-      const trimmedAvatar = avatarUrl.trim()
-      if (trimmedAvatar) {
-        try {
-          new URL(trimmedAvatar)
-        } catch {
-          throw new Error('Avatar URL must be a valid URL.')
-        }
-      }
-      return updateProfile({
-        name: name.trim() || null,
-        avatarUrl: trimmedAvatar || null,
-      })
+      return updateProfile({ name: name.trim() || null })
     },
     onSuccess: (updatedUser) => {
       setUser(updatedUser)
@@ -84,6 +92,62 @@ export function SettingsPage() {
     onSuccess: () => toast.success('Verification email requested'),
     onError: (mutationError) => toast.error(getErrorMessage(mutationError)),
   })
+
+  const avatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const media = await uploadMedia(file)
+      let avatarUrl = media.url
+
+      // The directory shows other users your avatar, so the file has to be
+      // publicly readable. Uploads start private, so flip the flag first.
+      if (!media.isPublic) {
+        try {
+          const published = await updateMediaVisibility(media.id, true)
+          avatarUrl = published.url
+        } catch {
+          toast.warning('Uploaded, but the file could not be made public.')
+        }
+      }
+
+      const updatedUser = await updateProfile({ avatarUrl })
+      return updatedUser
+    },
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser)
+      setAvatarError(null)
+      setPreviewUrl(null)
+      toast.success('Profile picture updated')
+    },
+    onError: (mutationError) => setAvatarError(getErrorMessage(mutationError)),
+  })
+
+  const removeAvatarMutation = useMutation({
+    mutationFn: () => updateProfile({ avatarUrl: null }),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser)
+      setAvatarError(null)
+      toast.success('Profile picture removed')
+    },
+    onError: (mutationError) => setAvatarError(getErrorMessage(mutationError)),
+  })
+
+  function handleAvatarFile(file: File | undefined) {
+    if (!file) return
+    setAvatarError(null)
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Choose an image file.')
+      return
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError('Images must be 10 MB or smaller.')
+      return
+    }
+
+    // The effect above revokes the previous preview when this changes.
+    setPreviewUrl(URL.createObjectURL(file))
+    avatarMutation.mutate(file)
+  }
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -128,42 +192,90 @@ export function SettingsPage() {
                   profileMutation.mutate()
                 }}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-start gap-4">
                   <Avatar className="size-16">
-                    <AvatarImage src={avatarUrl || undefined} alt="" />
+                    <AvatarImage
+                      src={previewUrl ?? user.avatarUrl ?? undefined}
+                      alt=""
+                    />
                     <AvatarFallback className="text-lg">
                       {initials(name)}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{name || 'Unnamed user'}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {user.email}
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div>
+                      <p className="text-sm font-medium">{name || 'Unnamed user'}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </p>
+                    </div>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={(event) => {
+                        handleAvatarFile(event.target.files?.[0])
+                        event.target.value = ''
+                      }}
+                    />
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={avatarMutation.isPending}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        {avatarMutation.isPending ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <ImageUp className="size-4" aria-hidden="true" />
+                        )}
+                        {avatarMutation.isPending
+                          ? 'Uploading…'
+                          : user.avatarUrl
+                            ? 'Replace picture'
+                            : 'Upload picture'}
+                      </Button>
+                      {user.avatarUrl ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={removeAvatarMutation.isPending}
+                          onClick={() => removeAvatarMutation.mutate()}
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                          Remove
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPG, or WebP up to 10 MB. The picture is stored in your
+                      media library and made public so others can see it.
                     </p>
+
+                    {avatarError ? (
+                      <p role="alert" className="text-xs text-destructive">
+                        {avatarError}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="settings-name">Display name</Label>
-                    <Input
-                      id="settings-name"
-                      value={name}
-                      maxLength={100}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder="Your name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="settings-avatar">Avatar URL</Label>
-                    <Input
-                      id="settings-avatar"
-                      value={avatarUrl}
-                      maxLength={2048}
-                      onChange={(event) => setAvatarUrl(event.target.value)}
-                      placeholder="https://cdn.example.com/avatar.png"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="settings-name">Display name</Label>
+                  <Input
+                    id="settings-name"
+                    value={name}
+                    maxLength={100}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Your name"
+                  />
                 </div>
 
                 {error ? (
