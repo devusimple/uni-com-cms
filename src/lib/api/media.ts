@@ -1,4 +1,4 @@
-import { api } from '@/lib/api/client'
+import { api, apiBlob } from '@/lib/api/client'
 import { toQueryString } from '@/lib/api/query'
 import type { Media, MediaListParams } from '@/lib/api/types'
 
@@ -22,6 +22,11 @@ export function updateMediaVisibility(id: string, isPublic: boolean) {
 
 export function deleteMedia(id: string) {
   return api.del<{ deleted: true }>(`/api/media/${id}`)
+}
+
+/** Streams the raw file bytes with the bearer token attached. */
+export function fetchMediaFile(id: string) {
+  return apiBlob(`/api/media/${id}/file`)
 }
 
 export function mediaFileUrl(id: string) {

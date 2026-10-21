@@ -137,7 +137,7 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            element: <RequireRole roles={['seller']} />,
+            element: <RequireRole roles={['admin']} />,
             children: [
               {
                 path: 'products/new',
@@ -251,7 +251,7 @@ export const router = createBrowserRouter([
             ],
           },
           {
-            element: <RequireRole roles={['admin', 'moderator']} />,
+            element: <RequireRole roles={['admin']} />,
             children: [
               {
                 path: 'customers',

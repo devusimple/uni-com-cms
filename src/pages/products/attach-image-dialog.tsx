@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
+import { MediaPreview } from '@/components/media-preview'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -77,7 +78,7 @@ export function AttachImageDialog({
           <DialogTitle>Attach product image</DialogTitle>
           <DialogDescription>
             Choose an upload from your media library. Attaching an image marks the
-            media file public.
+            media file public so the storefront can load it.
           </DialogDescription>
         </DialogHeader>
 
@@ -123,11 +124,7 @@ export function AttachImageDialog({
                   aria-pressed={selected}
                   aria-label={`Select ${media.filename}`}
                 >
-                  <img
-                    src={media.url}
-                    alt={media.filename}
-                    className="size-full object-cover"
-                  />
+                  <MediaPreview media={media} />
                   <span className="absolute inset-x-0 bottom-0 truncate bg-background/90 px-2 py-1 text-xs">
                     {media.filename}
                   </span>

@@ -41,6 +41,9 @@ interface AttributeDraft {
 }
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const MAX_ATTRIBUTES = 20
+const MAX_ATTRIBUTE_VALUES = 100
+const MAX_CATEGORIES = 10
 
 function newAttribute(): AttributeDraft {
   return { id: crypto.randomUUID(), name: '', values: '' }
@@ -93,7 +96,7 @@ export function CreateProductPage() {
   function toggleCategory(id: string, checked: boolean) {
     setCategoryIds((current) => {
       if (checked) {
-        if (current.length >= 10) return current
+        if (current.length >= MAX_CATEGORIES) return current
         return [...current, id]
       }
       return current.filter((value) => value !== id)
@@ -135,6 +138,22 @@ export function CreateProductPage() {
       )
     ) {
       setError('Every attribute needs a name and at least one value.')
+      return
+    }
+
+    if (cleanedAttributes.length > MAX_ATTRIBUTES) {
+      setError(`A product can have at most ${MAX_ATTRIBUTES} attributes.`)
+      return
+    }
+
+    if (
+      cleanedAttributes.some(
+        (attribute) => attribute.values.length > MAX_ATTRIBUTE_VALUES,
+      )
+    ) {
+      setError(
+        `Each attribute can have at most ${MAX_ATTRIBUTE_VALUES} values.`,
+      )
       return
     }
 
@@ -283,6 +302,7 @@ export function CreateProductPage() {
                   type="button"
                   variant="outline"
                   size="sm"
+                  disabled={attributes.length >= MAX_ATTRIBUTES}
                   onClick={() =>
                     setAttributes((current) => [...current, newAttribute()])
                   }
@@ -290,6 +310,11 @@ export function CreateProductPage() {
                   <Plus className="size-4" aria-hidden="true" />
                   Add attribute
                 </Button>
+                {attributes.length >= MAX_ATTRIBUTES ? (
+                  <p className="text-xs text-muted-foreground">
+                    The API accepts up to {MAX_ATTRIBUTES} attributes per product.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
 

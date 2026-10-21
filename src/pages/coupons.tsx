@@ -167,7 +167,7 @@ export function CouponsPage() {
                   <TableHead>Discount</TableHead>
                   <TableHead className="text-right">Minimum</TableHead>
                   <TableHead className="text-right">Usage</TableHead>
-                  <TableHead className="pl-6">Expires</TableHead>
+                  <TableHead className="pl-6">Schedule</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-24 pr-4 text-right">Active</TableHead>
                 </TableRow>
@@ -199,6 +199,10 @@ export function CouponsPage() {
                       {coupon.maxUses ? ` / ${coupon.maxUses}` : ' / ∞'}
                     </TableCell>
                     <TableCell className="pl-6 text-muted-foreground">
+                      {coupon.startsAt
+                        ? formatDateShort(coupon.startsAt)
+                        : 'Immediately'}
+                      {' → '}
                       {coupon.endsAt ? formatDateShort(coupon.endsAt) : 'No expiry'}
                     </TableCell>
                     <TableCell>

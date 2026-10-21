@@ -31,7 +31,7 @@ import { listOrders } from '@/lib/api/orders'
 import { listProducts } from '@/lib/api/products'
 import type { OrderScope, ProductListParams } from '@/lib/api/types'
 import { formatDateShort, formatMoney, shortId } from '@/lib/format'
-import { canModerate, isAdmin } from '@/lib/permissions'
+import { isAdmin } from '@/lib/permissions'
 
 function ListSkeleton({ rows = 4 }: { rows?: number }) {
   return (
@@ -53,10 +53,11 @@ function ListSkeleton({ rows = 4 }: { rows?: number }) {
 export function DashboardPage() {
   const { user } = useAuth()
   const role = user?.role
-  const staff = isAdmin(role) || canModerate(role)
-  const scope: OrderScope = staff ? 'all' : 'sold'
-  const productParams: ProductListParams =
-    role === 'seller' ? { mine: true, limit: 5 } : { limit: 5, sort: 'newest' }
+  const admin = isAdmin(role)
+  const scope: OrderScope = admin ? 'all' : 'mine'
+  const productParams: ProductListParams = admin
+    ? { limit: 5, sort: 'newest', status: 'published' }
+    : { limit: 5, status: 'published' }
 
   const ordersQuery = useQuery({
     queryKey: ['orders', 'recent', scope],
@@ -69,12 +70,12 @@ export function DashboardPage() {
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
     queryFn: listCategories,
-    enabled: isAdmin(role),
+    enabled: admin,
   })
   const couponsQuery = useQuery({
     queryKey: ['coupons'],
     queryFn: listCoupons,
-    enabled: isAdmin(role),
+    enabled: admin,
   })
 
   const categories = categoriesQuery.data ?? []
@@ -88,21 +89,21 @@ export function DashboardPage() {
       description: 'Group products so buyers can browse the storefront.',
       href: '/categories',
       done: categories.length > 0,
-      visible: isAdmin(role),
+      visible: admin,
     },
     {
       label: 'Add a product',
       description: 'Products start as drafts until you publish them.',
       href: '/products',
       done: products.length > 0,
-      visible: role === 'seller',
+      visible: admin,
     },
     {
       label: 'Set up a coupon',
       description: 'Offer a percentage or fixed-amount discount.',
       href: '/coupons',
       done: coupons.length > 0,
-      visible: isAdmin(role),
+      visible: admin,
     },
   ].filter((step) => step.visible)
 
@@ -110,13 +111,13 @@ export function DashboardPage() {
   const loading =
     ordersQuery.isLoading ||
     productsQuery.isLoading ||
-    (isAdmin(role) && (categoriesQuery.isLoading || couponsQuery.isLoading))
+    (admin && (categoriesQuery.isLoading || couponsQuery.isLoading))
 
   function refresh() {
     void ordersQuery.refetch()
     void productsQuery.refetch()
     void categoriesQuery.refetch()
-    if (isAdmin(role)) void couponsQuery.refetch()
+    if (admin) void couponsQuery.refetch()
   }
 
   return (
@@ -195,7 +196,9 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>Recent orders</CardTitle>
             <CardDescription>
-              {staff ? 'Latest orders across the marketplace.' : 'Latest orders for your products.'}
+              {admin
+                ? 'Latest orders across the marketplace.'
+                : 'Latest orders placed with your account.'}
             </CardDescription>
             <CardAction>
               <Button variant="ghost" size="sm" asChild>
@@ -252,9 +255,9 @@ export function DashboardPage() {
           <CardHeader>
             <CardTitle>Latest products</CardTitle>
             <CardDescription>
-              {role === 'seller'
-                ? 'The newest products in your catalog.'
-                : 'Published products, newest first.'}
+              {admin
+                ? 'Published products, newest first.'
+                : 'The products published in the marketplace.'}
             </CardDescription>
             <CardAction>
               <Button variant="ghost" size="sm" asChild>
@@ -276,13 +279,13 @@ export function DashboardPage() {
                 icon={Package}
                 title="No products yet"
                 description={
-                  role === 'seller'
+                  admin
                     ? 'Create a product to start building the UNI-COM catalog.'
                     : 'No published products are available in the marketplace yet.'
                 }
                 className="py-10"
                 action={
-                  role === 'seller' ? (
+                  admin ? (
                     <Button size="sm" asChild>
                       <Link to="/products">Go to products</Link>
                     </Button>
@@ -325,7 +328,7 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {isAdmin(role) ? (
+      {admin ? (
         <div className="grid gap-4 md:grid-cols-2">
           <Link
             to="/categories"

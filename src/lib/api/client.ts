@@ -3,7 +3,9 @@ import type { SessionPair } from '@/lib/api/types'
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_URL || 'https://uni-com.devusimple.workers.dev'
-).replace(/\/+$/, '')
+)
+  .trim()
+  .replace(/\/+$/, '')
 
 interface ErrorBody {
   success: false
@@ -86,8 +88,8 @@ async function refreshSession() {
   return refreshInFlight
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, auth = true, retryOn401 = true, headers, ...init } = options
+async function send(path: string, options: RequestOptions = {}) {
+  const { body, auth = true, headers, ...init } = options
   const requestHeaders = new Headers(headers)
   const isFormData = body instanceof FormData
 
@@ -100,7 +102,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     requestHeaders.set('Authorization', `Bearer ${accessToken}`)
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  return fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: requestHeaders,
     body:
@@ -110,7 +112,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           ? body
           : JSON.stringify(body),
   })
+}
 
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { auth = true, retryOn401 = true } = options
+  const response = await send(path, options)
   const payload = await readJson(response)
 
   if (response.status === 401 && auth && retryOn401) {
@@ -136,6 +142,33 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T
+}
+
+/**
+ * Fetches a binary response (media bytes) with the bearer token attached.
+ * Private files cannot be opened in a new tab because the browser cannot send
+ * the Authorization header, so they are streamed through the app instead.
+ */
+export async function apiBlob(path: string): Promise<Blob> {
+  let response = await send(path)
+
+  if (response.status === 401) {
+    const payload = await readJson(response)
+    try {
+      await refreshSession()
+    } catch {
+      useAuthStore.getState().clear()
+      throw errorFromResponse(response, payload)
+    }
+    response = await send(path)
+  }
+
+  if (!response.ok) {
+    const payload = await readJson(response)
+    throw errorFromResponse(response, payload)
+  }
+
+  return response.blob()
 }
 
 export async function bootstrapSession() {

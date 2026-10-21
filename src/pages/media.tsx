@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  File,
-  FileText,
+  Download,
+  ExternalLink,
   Image as ImageIcon,
   Loader2,
   MoreHorizontal,
@@ -17,6 +17,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CopyButton } from '@/components/copy-button'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
+import { MediaPreview } from '@/components/media-preview'
 import { PageHeader } from '@/components/page-header'
 import { Pagination } from '@/components/pagination'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +38,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import {
+  clearMediaObjectUrlCache,
+} from '@/hooks/use-media-object-url'
+import {
   deleteMedia,
+  fetchMediaFile,
   listMedia,
   updateMediaVisibility,
   uploadMedia,
@@ -48,32 +53,12 @@ import { formatDateShort, formatFileSize } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 24
+const MAX_FILE_SIZE = 10 * 1024 * 1024
 
-function MediaPreview({ media }: { media: Media }) {
-  const isImage = media.mimeType.startsWith('image/')
-  const isPdf = media.mimeType === 'application/pdf' || media.mimeType.startsWith('text/')
-
-  if (isImage) {
-    return (
-      <img
-        src={media.url}
-        alt={media.filename}
-        className="size-full object-cover"
-        loading="lazy"
-      />
-    )
-  }
-
-  return (
-    <div className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground">
-      {isPdf ? (
-        <FileText className="size-8" aria-hidden="true" />
-      ) : (
-        <File className="size-8" aria-hidden="true" />
-      )}
-      <span className="text-xs uppercase">{media.mimeType.split('/')[1] ?? 'FILE'}</span>
-    </div>
-  )
+async function resolveFileUrl(media: Media) {
+  if (media.isPublic && media.url) return media.url
+  const blob = await fetchMediaFile(media.id)
+  return URL.createObjectURL(blob)
 }
 
 export function MediaPage() {
@@ -82,6 +67,7 @@ export function MediaPage() {
   const page = Math.max(1, Number(params.get('page') ?? '1') || 1)
   const [dragActive, setDragActive] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Media | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const mediaQuery = useQuery({
@@ -118,6 +104,7 @@ export function MediaPage() {
       updateMediaVisibility(mediaItem.id, !mediaItem.isPublic),
     onSuccess: (_result, mediaItem) => {
       toast.success(mediaItem.isPublic ? 'File made private' : 'File made public')
+      clearMediaObjectUrlCache(mediaItem.id)
       invalidateMedia()
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -128,6 +115,7 @@ export function MediaPage() {
     onSuccess: () => {
       toast.success('File deleted')
       setDeleteTarget(null)
+      clearMediaObjectUrlCache(deleteTarget?.id)
       invalidateMedia()
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -136,18 +124,51 @@ export function MediaPage() {
   function handleFiles(files: FileList | null) {
     const file = files?.[0]
     if (!file) return
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_FILE_SIZE) {
       toast.error('Files must be 10 MB or smaller.')
       return
     }
     uploadMutation.mutate(file)
   }
 
+  async function openFile(mediaItem: Media) {
+    setBusyId(mediaItem.id)
+    try {
+      const url = await resolveFileUrl(mediaItem)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      toast.error(getErrorMessage(error))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function downloadFile(mediaItem: Media) {
+    setBusyId(mediaItem.id)
+    try {
+      const url = await resolveFileUrl(mediaItem)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = mediaItem.filename
+      anchor.rel = 'noopener noreferrer'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      if (url.startsWith('blob:')) {
+        setTimeout(() => URL.revokeObjectURL(url), 30_000)
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <>
       <PageHeader
         title="Media"
-        description="Upload product imagery and storefront assets. Making a file public exposes its URL; product images are made public automatically when attached."
+        description="Upload product imagery and storefront assets. Private files stay behind your session, so only you can preview or download them."
         actions={
           <>
             <Button
@@ -293,17 +314,23 @@ export function MediaPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <a href={mediaItem.url} target="_blank" rel="noreferrer">
-                          <FileText className="size-4" aria-hidden="true" />
-                          Open file
-                        </a>
+                      <DropdownMenuItem
+                        disabled={busyId === mediaItem.id}
+                        onClick={() => void openFile(mediaItem)}
+                      >
+                        {busyId === mediaItem.id ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <ExternalLink className="size-4" aria-hidden="true" />
+                        )}
+                        Open file
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <a href={mediaItem.url} download={mediaItem.filename}>
-                          <Upload className="size-4 rotate-180" aria-hidden="true" />
-                          Download
-                        </a>
+                      <DropdownMenuItem
+                        disabled={busyId === mediaItem.id}
+                        onClick={() => void downloadFile(mediaItem)}
+                      >
+                        <Download className="size-4" aria-hidden="true" />
+                        Download
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"

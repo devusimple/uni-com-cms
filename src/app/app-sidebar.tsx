@@ -38,7 +38,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { logout } from '@/lib/api/auth'
 import { useAuthStore } from '@/lib/auth-store'
 import { initials } from '@/lib/format'
-import { canModerate, isAdmin } from '@/lib/permissions'
+import { isAdmin } from '@/lib/permissions'
 import type { Role } from '@/lib/api/types'
 
 interface NavItem {
@@ -72,7 +72,7 @@ const navGroups: NavGroup[] = [
         title: 'Customers',
         href: '/customers',
         icon: Users,
-        roles: ['admin', 'moderator'],
+        roles: ['admin'],
       },
     ],
   },
@@ -206,7 +206,7 @@ export function AppSidebar() {
                     <p className="text-sm font-medium">{user?.name ?? 'Unnamed user'}</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                     <p className="text-xs capitalize text-muted-foreground">
-                      {user?.role}
+                      {user?.role === 'admin' ? 'Administrator' : 'Member'}
                     </p>
                   </div>
                 </DropdownMenuLabel>
@@ -228,9 +228,7 @@ export function AppSidebar() {
         <div className="px-2 pb-1 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
           {isAdmin(user?.role)
             ? 'Administrator workspace'
-            : canModerate(user?.role)
-              ? 'Moderation workspace'
-              : 'Seller workspace'}
+            : 'Member workspace'}
         </div>
       </SidebarFooter>
       <SidebarRail />

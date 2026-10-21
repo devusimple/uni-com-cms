@@ -212,7 +212,11 @@ export function SettingsPage() {
                 </div>
                 <div className="flex items-center justify-between gap-3 py-2">
                   <dt className="text-muted-foreground">Role</dt>
-                  <dd className="capitalize">{user.role}</dd>
+                  <dd>
+                    <Badge variant="outline" className="capitalize">
+                      {user.role === 'admin' ? 'Administrator' : 'Member'}
+                    </Badge>
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3 py-2">
                   <dt className="text-muted-foreground">Account status</dt>

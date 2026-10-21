@@ -28,6 +28,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -45,11 +52,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAuth } from '@/hooks/use-auth'
-import { cancelOrder, fulfillOrder, listOrders } from '@/lib/api/orders'
+import { cancelOrder, fulfillOrder, getOrder, listOrders } from '@/lib/api/orders'
 import type { Order, OrderScope } from '@/lib/api/types'
 import { getErrorMessage } from '@/lib/errors'
 import { formatDate, formatDateShort, formatMoney, shortId } from '@/lib/format'
-import { canModerate, isAdmin } from '@/lib/permissions'
+import { isAdmin } from '@/lib/permissions'
 
 const PAGE_SIZE = 20
 
@@ -72,11 +79,15 @@ function OrdersSkeleton() {
 export function OrdersPage() {
   const { user } = useAuth()
   const role = user?.role
-  const scope: OrderScope = isAdmin(role) || canModerate(role) ? 'all' : 'sold'
+  const admin = isAdmin(role)
   const [params, setParams] = useSearchParams()
   const page = Math.max(1, Number(params.get('page') ?? '1') || 1)
   const offset = (page - 1) * PAGE_SIZE
   const queryClient = useQueryClient()
+
+  const scopeParam = params.get('scope')
+  const scope: OrderScope =
+    scopeParam === 'all' && admin ? 'all' : scopeParam === 'mine' ? 'mine' : admin ? 'all' : 'mine'
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Order | null>(null)
@@ -88,7 +99,22 @@ export function OrdersPage() {
   })
 
   const orders = ordersQuery.data ?? []
-  const selectedOrder = orders.find((order) => order.id === selectedId) ?? null
+
+  const orderDetailQuery = useQuery({
+    queryKey: ['order', selectedId],
+    queryFn: () => getOrder(selectedId as string),
+    enabled: Boolean(selectedId),
+  })
+
+  const selectedOrder = orderDetailQuery.data ?? null
+
+  function setParam(key: string, value: string | null) {
+    const next = new URLSearchParams(params)
+    if (value === null || value === '') next.delete(key)
+    else next.set(key, value)
+    next.delete('page')
+    setParams(next)
+  }
 
   function setPage(nextPage: number) {
     const next = new URLSearchParams(params)
@@ -99,6 +125,7 @@ export function OrdersPage() {
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ['orders'] })
+    if (selectedId) void queryClient.invalidateQueries({ queryKey: ['order', selectedId] })
   }
 
   const cancelMutation = useMutation({
@@ -107,6 +134,7 @@ export function OrdersPage() {
       toast.success('Order cancelled and stock restored')
       setCancelTarget(null)
       void queryClient.invalidateQueries({ queryKey: ['orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['order'] })
       void queryClient.invalidateQueries({ queryKey: ['products'] })
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -118,6 +146,7 @@ export function OrdersPage() {
       toast.success('Order marked as fulfilled')
       setFulfillTarget(null)
       void queryClient.invalidateQueries({ queryKey: ['orders'] })
+      void queryClient.invalidateQueries({ queryKey: ['order'] })
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   })
@@ -131,21 +160,37 @@ export function OrdersPage() {
         description={
           scope === 'all'
             ? 'Review and fulfil orders across the marketplace.'
-            : 'Orders containing your products.'
+            : 'Orders placed with your UNI-COM account.'
         }
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refresh}
-            disabled={ordersQuery.isFetching}
-          >
-            <RefreshCw
-              className={ordersQuery.isFetching ? 'size-4 animate-spin' : 'size-4'}
-              aria-hidden="true"
-            />
-            Refresh
-          </Button>
+          <>
+            {admin ? (
+              <Select
+                value={scope}
+                onValueChange={(value) => setParam('scope', value)}
+              >
+                <SelectTrigger className="w-full sm:w-40" aria-label="Order scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All orders</SelectItem>
+                  <SelectItem value="mine">My orders</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refresh}
+              disabled={ordersQuery.isFetching}
+            >
+              <RefreshCw
+                className={ordersQuery.isFetching ? 'size-4 animate-spin' : 'size-4'}
+                aria-hidden="true"
+              />
+              Refresh
+            </Button>
+          </>
         }
       />
 
@@ -241,7 +286,7 @@ export function OrdersPage() {
                               <ClipboardList className="size-4" aria-hidden="true" />
                               View details
                             </DropdownMenuItem>
-                            {!terminal(order.status) ? (
+                            {admin && !terminal(order.status) ? (
                               <>
                                 <DropdownMenuItem
                                   onClick={() => setFulfillTarget(order)}
@@ -281,7 +326,7 @@ export function OrdersPage() {
         )}
       </div>
 
-      <Sheet open={Boolean(selectedOrder)} onOpenChange={(open) => !open && setSelectedId(null)}>
+      <Sheet open={Boolean(selectedId)} onOpenChange={(open) => !open && setSelectedId(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           {selectedOrder ? (
             <>
@@ -404,6 +449,10 @@ export function OrdersPage() {
                         {formatMoney(selectedOrder.totalCents, selectedOrder.currency)}
                       </span>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Online payment is not configured on the API. Cash on delivery is
+                      the only method the storefront can settle.
+                    </p>
                   </div>
                 </section>
               </div>
@@ -418,7 +467,7 @@ export function OrdersPage() {
                     Cancel order
                   </Button>
                 ) : null}
-                {!terminal(selectedOrder.status) ? (
+                {admin && !terminal(selectedOrder.status) ? (
                   <Button onClick={() => setFulfillTarget(selectedOrder)}>
                     <CheckCircle2 className="size-4" aria-hidden="true" />
                     Mark fulfilled
@@ -430,6 +479,20 @@ export function OrdersPage() {
                 )}
               </SheetFooter>
             </>
+          ) : orderDetailQuery.isError ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+              <p className="text-sm font-medium">Order details unavailable</p>
+              <p className="text-sm text-muted-foreground">
+                {getErrorMessage(orderDetailQuery.error)}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void orderDetailQuery.refetch()}
+              >
+                Try again
+              </Button>
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden="true" />

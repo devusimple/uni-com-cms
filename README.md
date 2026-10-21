@@ -1,6 +1,6 @@
 # UNI-COM Console
 
-Internal operations console for the UNI-COM commerce API. Built for marketplace staff and sellers to manage orders, catalog, media, coupons, and customer access.
+Internal operations console for the UNI-COM commerce API. Built for marketplace staff to manage orders, catalog, media, coupons, and customer access.
 
 ## Stack
 
@@ -34,15 +34,15 @@ There is no test suite or formatter configured yet.
 
 - **Login** — staff sign-in, password reset request
 - **Overview** — setup checklist plus recent orders and products
-- **Orders** — filterable-by-scope list, detail sheet, cancel/fulfil actions
-- **Products** — catalog list, product creation (seller accounts), detail, variations, image attachment
+- **Orders** — scope switch, filterable list, detail sheet, cancel/fulfil actions
+- **Products** — catalog list with search, status, category, price, and ownership filters; product creation, detail, variations, image attachment
 - **Categories** — create, list, delete
 - **Coupons** — create, list, toggle active, edit usage limit/expiry
 - **Customers** — public user directory with role/status actions
-- **Media** — upload, visibility toggle, copy URL, delete
+- **Media** — upload, visibility toggle, authenticated preview and download, copy URL, delete
 - **Settings** — profile, account details, session controls
 
-Access is role-aware. Categories and coupons require `admin`; customers requires `admin` or `moderator`. Product creation is restricted to `seller` accounts by the API.
+Access is role-aware. The API exposes two roles: `user` and `admin`. Categories, coupons, customers, product creation, and order fulfilment require `admin`; everyone else sees only their own orders and the published catalog.
 
 ## API notes
 
@@ -55,6 +55,8 @@ Key constraints:
 - The user directory only exposes names, avatars, and IDs.
 - Coupons cannot be deleted; only `isActive`, `maxUses`, and `endsAt` can be updated.
 - Orders can only be cancelled (pending) or fulfilled; there are no refund or shipping-edit endpoints.
+- Product ownership is `ownerId`. The list `category` filter takes a category slug, and `minPrice`/`maxPrice` are integer cents.
+- Private media needs the session token, so the console streams those bytes and renders an object URL.
 - Payment is COD only. Stripe endpoints are present but not configured.
 
 See `AGENTS.md` for detailed engineering constraints and endpoint gaps.

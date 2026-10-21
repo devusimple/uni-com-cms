@@ -328,7 +328,7 @@ export function VariationFormPage() {
   })
   const product = productQuery.data
   const canEdit = Boolean(
-    product && (isAdmin(user?.role) || product.sellerId === user?.id),
+    product && (isAdmin(user?.role) || product.ownerId === user?.id),
   )
   const variation = variationId
     ? product?.variations.find((item) => item.id === variationId) ?? null
@@ -376,7 +376,7 @@ export function VariationFormPage() {
       <>
         <PageHeader
           title={variationId ? 'Edit variation' : 'New variation'}
-          description="This product belongs to another seller."
+          description="This product belongs to another owner."
           actions={
             <Button variant="outline" size="sm" asChild>
               <Link to={`/products/${product.id}`}>
@@ -389,7 +389,7 @@ export function VariationFormPage() {
         <div className="rounded-xl border border-border bg-card">
           <ErrorState
             title="You cannot manage variations for this product"
-            message="Only the owning seller or an administrator can add or update variations."
+            message="Only the owning account or an administrator can add or update variations."
           />
         </div>
       </>

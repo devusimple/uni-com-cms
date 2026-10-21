@@ -1,4 +1,4 @@
-export type Role = 'user' | 'seller' | 'moderator' | 'admin'
+export type Role = 'user' | 'admin'
 
 export interface SafeUser {
   id: string
@@ -81,7 +81,7 @@ export interface ProductVariation {
 
 export interface Product {
   id: string
-  sellerId: string
+  ownerId: string
   name: string
   slug: string
   description: string | null
@@ -95,7 +95,7 @@ export interface Product {
 
 export interface ProductCard {
   id: string
-  sellerId: string
+  ownerId: string
   name: string
   slug: string
   description: string | null
@@ -153,7 +153,7 @@ export interface Media {
   createdAt: number
 }
 
-export type OrderScope = 'mine' | 'all' | 'sold'
+export type OrderScope = 'mine' | 'all'
 export type ProductSort = 'newest' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'
 
 export interface PageParams {
@@ -163,10 +163,12 @@ export interface PageParams {
 
 export interface ProductListParams extends PageParams {
   status?: ProductStatus
-  sellerId?: string
+  ownerId?: string
   search?: string
+  /** Category slug, not the category id. */
   category?: string
   sort?: ProductSort
+  /** Price bounds are integer cents. */
   minPrice?: number
   maxPrice?: number
   mine?: boolean

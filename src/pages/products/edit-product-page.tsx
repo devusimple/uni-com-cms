@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/use-auth'
+import { listCategories } from '@/lib/api/categories'
 import { getProduct, updateProduct } from '@/lib/api/products'
 import type { Product, ProductStatus } from '@/lib/api/types'
 import { getErrorMessage } from '@/lib/errors'
@@ -37,6 +39,7 @@ import {
 } from '@/lib/product-description'
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const MAX_CATEGORIES = 10
 
 function EditProductForm({ product }: { product: Product }) {
   const navigate = useNavigate()
@@ -47,7 +50,15 @@ function EditProductForm({ product }: { product: Product }) {
     toProductDescriptionEditorValue(product.description),
   )
   const [status, setStatus] = useState<ProductStatus>(product.status)
+  const [categoryIds, setCategoryIds] = useState<string[]>([])
+  const [categoriesTouched, setCategoriesTouched] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
+    queryFn: listCategories,
+  })
+  const categories = categoriesQuery.data ?? []
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -69,6 +80,7 @@ function EditProductForm({ product }: { product: Product }) {
         slug: slug.trim(),
         description: normalizedDescription,
         status,
+        ...(categoriesTouched ? { categoryIds } : {}),
       })
     },
     onSuccess: () => {
@@ -80,11 +92,22 @@ function EditProductForm({ product }: { product: Product }) {
     onError: (mutationError) => setError(getErrorMessage(mutationError)),
   })
 
+  function toggleCategory(id: string, checked: boolean) {
+    setCategoriesTouched(true)
+    setCategoryIds((current) => {
+      if (checked) {
+        if (current.length >= MAX_CATEGORIES) return current
+        return [...current, id]
+      }
+      return current.filter((value) => value !== id)
+    })
+  }
+
   return (
     <>
       <PageHeader
         title={`Edit ${product.name}`}
-        description="Update the product record. Category assignments and attributes are not editable from this screen."
+        description="Update the product record. Attributes are fixed after creation."
         actions={
           <>
             <Button variant="outline" size="sm" asChild>
@@ -117,70 +140,128 @@ function EditProductForm({ product }: { product: Product }) {
         }}
       >
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Product information</CardTitle>
-              <CardDescription>
-                Changes to the name and slug appear in the storefront immediately.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="edit-product-name">Name</Label>
-                <Input
-                  id="edit-product-name"
-                  value={name}
-                  maxLength={200}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-product-slug">Slug</Label>
-                <Input
-                  id="edit-product-slug"
-                  value={slug}
-                  maxLength={220}
-                  onChange={(event) => setSlug(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Lowercase letters, numbers, and hyphens.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-product-status">Status</Label>
-                <Select
-                  value={status}
-                  onValueChange={(value) => setStatus(value as ProductStatus)}
-                >
-                  <SelectTrigger id="edit-product-status" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="edit-product-description">Description</Label>
-                <RichTextEditor
-                  id="edit-product-description"
-                  value={description}
-                  onChange={setDescription}
-                  maxLength={PRODUCT_DESCRIPTION_MAX_LENGTH}
-                />
-              </div>
-              {error ? (
-                <div
-                  role="alert"
-                  className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive sm:col-span-2"
-                >
-                  {error}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Product information</CardTitle>
+                <CardDescription>
+                  Changes to the name and slug appear in the storefront immediately.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-product-name">Name</Label>
+                  <Input
+                    id="edit-product-name"
+                    value={name}
+                    maxLength={200}
+                    onChange={(event) => setName(event.target.value)}
+                  />
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-product-slug">Slug</Label>
+                  <Input
+                    id="edit-product-slug"
+                    value={slug}
+                    maxLength={220}
+                    onChange={(event) => setSlug(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Lowercase letters, numbers, and hyphens.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-product-status">Status</Label>
+                  <Select
+                    value={status}
+                    onValueChange={(value) => setStatus(value as ProductStatus)}
+                  >
+                    <SelectTrigger id="edit-product-status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="published">Published</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-product-description">Description</Label>
+                  <RichTextEditor
+                    id="edit-product-description"
+                    value={description}
+                    onChange={setDescription}
+                    maxLength={PRODUCT_DESCRIPTION_MAX_LENGTH}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Categories</CardTitle>
+                <CardDescription>
+                  The API does not return the categories already assigned to this
+                  product, so this list starts empty. Saving a selection replaces the
+                  product&apos;s current categories.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {categoriesQuery.isLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-40" />
+                    <Skeleton className="h-5 w-32" />
+                  </div>
+                ) : categoriesQuery.isError ? (
+                  <p className="text-sm text-muted-foreground">
+                    Categories could not be loaded. Leave this section untouched to
+                    keep the current assignment.
+                  </p>
+                ) : categories.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No categories are configured yet.
+                  </p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {categories.map((category) => {
+                      const checked = categoryIds.includes(category.id)
+                      return (
+                        <label
+                          key={category.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            disabled={!checked && categoryIds.length >= MAX_CATEGORIES}
+                            onCheckedChange={(value) =>
+                              toggleCategory(category.id, value === true)
+                            }
+                          />
+                          {category.name}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+                {categoriesTouched ? (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Saving will assign {categoryIds.length}{' '}
+                    {categoryIds.length === 1 ? 'category' : 'categories'}.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {error ? (
+              <div
+                role="alert"
+                className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                {error}
+              </div>
+            ) : null}
+          </div>
 
           <div className="space-y-6">
             <Card>
@@ -197,23 +278,17 @@ function EditProductForm({ product }: { product: Product }) {
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Seller ID</span>
-                  <span className="font-mono text-xs">{product.sellerId}</span>
+                  <span className="text-muted-foreground">Owner ID</span>
+                  <span className="font-mono text-xs">{product.ownerId}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Variations</span>
                   <span className="tabular-nums">{product.variations.length}</span>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Categories</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Category assignments are not returned by the API, so they are not shown
-                here. They are preserved when this form is saved.
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Attributes</span>
+                  <span className="tabular-nums">{product.attributes.length}</span>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -233,7 +308,7 @@ export function EditProductPage() {
   })
   const product = productQuery.data
   const canEdit = Boolean(
-    product && (isAdmin(user?.role) || product.sellerId === user?.id),
+    product && (isAdmin(user?.role) || product.ownerId === user?.id),
   )
 
   if (!id) return null
@@ -278,7 +353,7 @@ export function EditProductPage() {
       <>
         <PageHeader
           title="Edit product"
-          description="This product belongs to another seller."
+          description="This product belongs to another owner."
           actions={
             <Button variant="outline" size="sm" asChild>
               <Link to={`/products/${product.id}`}>
@@ -291,7 +366,7 @@ export function EditProductPage() {
         <div className="rounded-xl border border-border bg-card">
           <ErrorState
             title="You cannot edit this product"
-            message="Only the owning seller or an administrator can update this product."
+            message="Only the owning account or an administrator can update this product."
           />
         </div>
       </>

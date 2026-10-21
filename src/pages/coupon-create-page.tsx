@@ -35,6 +35,7 @@ export function CouponCreatePage() {
   const [value, setValue] = useState('')
   const [minSubtotal, setMinSubtotal] = useState('')
   const [maxUses, setMaxUses] = useState('')
+  const [startsAt, setStartsAt] = useState('')
   const [endsAt, setEndsAt] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +43,9 @@ export function CouponCreatePage() {
   const mutation = useMutation({
     mutationFn: async () => {
       const trimmedCode = code.trim()
+      if (trimmedCode.length < 2) {
+        throw new Error('Code must be at least 2 characters long.')
+      }
       if (!COUPON_CODE_PATTERN.test(trimmedCode)) {
         throw new Error('Code must use letters, numbers, hyphens, or underscores.')
       }
@@ -66,6 +70,15 @@ export function CouponCreatePage() {
       ) {
         throw new Error('Usage limit must be a whole number of at least 1.')
       }
+      const startsAtValue = toUnixSeconds(startsAt)
+      const endsAtValue = toUnixSeconds(endsAt)
+      if (
+        startsAtValue !== null &&
+        endsAtValue !== null &&
+        endsAtValue <= startsAtValue
+      ) {
+        throw new Error('The expiry must come after the start date.')
+      }
 
       return createCoupon({
         code: trimmedCode,
@@ -76,7 +89,8 @@ export function CouponCreatePage() {
             : Math.round(numericValue * 100),
         minSubtotalCents: Math.round(minSubtotalValue * 100),
         maxUses: maxUsesValue,
-        endsAt: toUnixSeconds(endsAt),
+        startsAt: startsAtValue,
+        endsAt: endsAtValue,
         isActive,
       })
     },
@@ -205,6 +219,19 @@ export function CouponCreatePage() {
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="coupon-start">Starts at</Label>
+                <Input
+                  id="coupon-start"
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(event) => setStartsAt(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to start the code immediately. The start date cannot be
+                  changed later.
+                </p>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="coupon-expiry">Expires at</Label>
                 <Input
                   id="coupon-expiry"
@@ -250,7 +277,7 @@ export function CouponCreatePage() {
                 <CardTitle>Immutable fields</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <p>Code, type, value, and minimum subtotal cannot be changed later.</p>
+                <p>Code, type, value, minimum subtotal, and start date cannot be changed later.</p>
                 <p>Coupons cannot be deleted, so deactivate a code to stop redemptions.</p>
               </CardContent>
             </Card>

@@ -24,9 +24,9 @@ export async function logoutAll() {
 }
 
 export async function requestPasswordReset(email: string) {
-  return api.post<{ requested: true }>('/api/auth/forgot', { email }, false)
+  return api.post<{ sent: true; devToken?: string }>('/api/auth/forgot', { email }, false)
 }
 
 export async function requestEmailVerification() {
-  return api.post<{ requested: true }>('/api/auth/verify-request')
+  return api.post<{ sent: true; devToken?: string }>('/api/auth/verify-request')
 }

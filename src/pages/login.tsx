@@ -130,7 +130,7 @@ export function LoginPage() {
             </div>
             <div className="flex items-center gap-3 border-t border-brand-foreground/15 pt-3">
               <ShieldCheck className="size-4 text-brand-foreground/60" aria-hidden="true" />
-              <span>Moderate access with role-based controls</span>
+              <span>Administer catalog, orders, and customer access</span>
             </div>
           </div>
         </div>

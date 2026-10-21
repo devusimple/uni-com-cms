@@ -94,7 +94,7 @@ export function ProductDetailPage() {
 
   const product = productQuery.data
   const canEdit = Boolean(
-    product && (isAdmin(user?.role) || product.sellerId === user?.id),
+    product && (isAdmin(user?.role) || product.ownerId === user?.id),
   )
 
   const deleteProductMutation = useMutation({
@@ -426,10 +426,10 @@ export function ProductDetailPage() {
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3 py-2">
-                  <dt className="text-muted-foreground">Seller ID</dt>
+                  <dt className="text-muted-foreground">Owner ID</dt>
                   <dd className="flex items-center gap-1 font-mono text-xs">
-                    {shortId(product.sellerId, 12)}
-                    <CopyButton value={product.sellerId} label="Copy seller ID" />
+                    {shortId(product.ownerId, 12)}
+                    <CopyButton value={product.ownerId} label="Copy owner ID" />
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3 py-2">

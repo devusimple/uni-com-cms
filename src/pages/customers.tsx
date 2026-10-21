@@ -52,10 +52,9 @@ import { listUsers, setUserRole, setUserStatus } from '@/lib/api/users'
 import type { PublicUser, Role } from '@/lib/api/types'
 import { getErrorMessage } from '@/lib/errors'
 import { initials } from '@/lib/format'
-import { isAdmin } from '@/lib/permissions'
 
 const PAGE_SIZE = 20
-const roles: Role[] = ['user', 'seller', 'moderator', 'admin']
+const roles: Role[] = ['user', 'admin']
 
 export function CustomersPage() {
   const { user: currentUser } = useAuth()
@@ -132,7 +131,7 @@ export function CustomersPage() {
     <>
       <PageHeader
         title="Customers"
-        description="The public user directory. The API exposes only names, avatars, and IDs here — email, role, and account status are not available for other users."
+        description="The public user directory. The API exposes only names, avatars, and IDs here — email, role, and account status are not available for other users. Accounts hold one of two roles: user or admin."
         actions={
           <Button
             variant="outline"
@@ -153,7 +152,8 @@ export function CustomersPage() {
         <div>
           <p className="text-sm font-medium">Directory filter</p>
           <p className="text-xs text-muted-foreground">
-            Filtering happens on the server; the returned profiles do not include roles.
+            Filtering happens on the server; the returned profiles do not include
+            roles.
           </p>
         </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -299,49 +299,43 @@ export function CustomersPage() {
           </DialogHeader>
 
           <div className="space-y-5">
-            {isAdmin(currentUser?.role) ? (
-              <div className="space-y-2">
-                <Label htmlFor="user-role">Assign role</Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={nextRole}
-                    onValueChange={(value) => setNextRole(value as Role)}
-                  >
-                    <SelectTrigger id="user-role" className="flex-1">
-                      <SelectValue placeholder="Choose a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles.map((role) => (
-                        <SelectItem key={role} value={role} className="capitalize">
-                          {role}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    disabled={!nextRole || roleMutation.isPending}
-                    onClick={() => {
-                      setError(null)
-                      roleMutation.mutate()
-                    }}
-                  >
-                    <ShieldCheck className="size-4" aria-hidden="true" />
-                    Apply
-                  </Button>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="user-role">Assign role</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={nextRole}
+                  onValueChange={(value) => setNextRole(value as Role)}
+                >
+                  <SelectTrigger id="user-role" className="flex-1">
+                    <SelectValue placeholder="Choose a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role} value={role} className="capitalize">
+                        {role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  disabled={!nextRole || roleMutation.isPending}
+                  onClick={() => {
+                    setError(null)
+                    roleMutation.mutate()
+                  }}
+                >
+                  <ShieldCheck className="size-4" aria-hidden="true" />
+                  Apply
+                </Button>
               </div>
-            ) : (
-              <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-                Role assignment is restricted to administrators.
-              </p>
-            )}
+            </div>
 
             <div className="space-y-2 rounded-lg border border-border p-3">
               <p className="text-sm font-medium">Account status</p>
               <p className="text-xs text-muted-foreground">
-                Disabling an account signs the user out everywhere. Moderators cannot
-                disable themselves or other administrators.
+                Disabling an account signs the user out everywhere. Administrators
+                cannot disable their own account.
               </p>
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button
